@@ -18,7 +18,9 @@ final userGroupsProvider = StreamProvider<List<JuntaGroup>>((ref) {
 
 final selectedContactsProvider = StateProvider<List<AppUser>>((ref) => []);
 
-final groupCreationProvider = Provider<GroupCreationController>((ref) {
+final isCreatingGroupProvider = StateProvider<bool>((ref) => false);
+
+final groupCreationControllerProvider = Provider<GroupCreationController>((ref) {
   return GroupCreationController(ref);
 });
 

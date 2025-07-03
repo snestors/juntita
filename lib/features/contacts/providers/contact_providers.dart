@@ -4,6 +4,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../core/providers/service_providers.dart';
+import '../../groups/providers/group_providers.dart';
 
 final registeredContactsProvider = FutureProvider<List<AppUser>>((ref) async {
   final contactService = ref.read(contactServiceProvider);
