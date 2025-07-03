@@ -182,7 +182,7 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
 
     ref
         .read(authStateProvider.notifier)
-        .createUserProfile(_nameController.text);
+        .createProfile(_nameController.text);
   }
 
   @override
