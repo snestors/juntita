@@ -2,7 +2,8 @@
 class AppUser {
   final String id;
   final String name;
-  final String phone;
+  final String email;
+  final String? phone;
   final String? photoUrl;
   final DateTime createdAt;
   final bool isOnline;
@@ -11,7 +12,8 @@ class AppUser {
   AppUser({
     required this.id,
     required this.name,
-    required this.phone,
+    required this.email,
+    this.phone,
     this.photoUrl,
     required this.createdAt,
     this.isOnline = false,
@@ -25,6 +27,7 @@ class AppUser {
     return {
       'id': id,
       'name': name,
+      'email': email,
       'phone': phone,
       'photoUrl': photoUrl,
       'createdAt': createdAt.millisecondsSinceEpoch,
@@ -36,6 +39,7 @@ class AppUser {
     return AppUser(
       id: map['id'],
       name: map['name'],
+      email: map['email'],
       phone: map['phone'],
       photoUrl: map['photoUrl'],
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
@@ -46,6 +50,7 @@ class AppUser {
   AppUser copyWith({
     String? id,
     String? name,
+    String? email,
     String? phone,
     String? photoUrl,
     DateTime? createdAt,
@@ -55,6 +60,7 @@ class AppUser {
     return AppUser(
       id: id ?? this.id,
       name: name ?? this.name,
+      email: email ?? this.email,
       phone: phone ?? this.phone,
       photoUrl: photoUrl ?? this.photoUrl,
       createdAt: createdAt ?? this.createdAt,

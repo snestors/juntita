@@ -25,10 +25,9 @@ final filteredContactsProvider = Provider<List<AppUser>>((ref) {
 
       if (searchQuery.isNotEmpty) {
         filtered = filtered.where((contact) {
-          return contact.displayName.toLowerCase().contains(
-                searchQuery.toLowerCase(),
-              ) ||
-              contact.phone.contains(searchQuery);
+          final query = searchQuery.toLowerCase();
+          return contact.displayName.toLowerCase().contains(query) ||
+              contact.email.toLowerCase().contains(query);
         }).toList();
       }
 

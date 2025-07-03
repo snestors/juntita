@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../controllers/auth_controller.dart';
+import 'package:junta/features/auth/providers/auth_provider.dart';
 import 'package:junta/shared/models/auth_state.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -50,7 +50,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void _checkAuthState() {
     if (!mounted || _hasNavigated) return;
 
-    final authState = ref.read(authControllerProvider);
+    final authState = ref.read(authStateProvider);
     _navigateBasedOnAuthState(authState);
   }
 
@@ -70,7 +70,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       case AuthStatus.error:
       case AuthStatus.initial:
       default:
-        context.go('/phone-auth');
+        context.go('/auth');
         break;
     }
   }
@@ -78,7 +78,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     // Escuchar cambios de estado de autenticación
-    ref.listen<AuthState>(authControllerProvider, (previous, next) {
+    ref.listen<AuthState>(authStateProvider, (previous, next) {
       // Solo navegar si la animación terminó y no hemos navegado aún
       if (_animationController.isCompleted && !_hasNavigated) {
         // Dar un pequeño delay para que la UI se estabilice
@@ -163,7 +163,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     // Estado de carga
                     Consumer(
                       builder: (context, ref, child) {
-                        final authState = ref.watch(authControllerProvider);
+                        final authState = ref.watch(authStateProvider);
                         String loadingText = 'Inicializando...';
 
                         switch (authState.status) {

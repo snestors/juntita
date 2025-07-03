@@ -5,8 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:junta/features/auth/providers/auth_provider.dart';
-import 'package:junta/features/auth/screens/phone_auth_screen.dart';
+import 'package:junta/features/auth/screens/email_auth_screen.dart';
 import 'package:junta/features/auth/screens/splash_screen.dart';
+import 'package:junta/features/auth/screens/create_profile_screen.dart';
 import 'package:junta/features/groups/screens/create_group_screen.dart';
 import 'package:junta/features/groups/screens/dashboard_screen.dart';
 import '../shared/models/auth_state.dart';
@@ -18,7 +19,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: RouterRefreshNotifier(ref),
     routes: [
       GoRoute(path: '/', builder: (context, state) => SplashScreen()),
-      GoRoute(path: '/auth', builder: (context, state) => PhoneAuthScreen()),
+      GoRoute(path: '/auth', builder: (context, state) => const EmailAuthScreen()),
       GoRoute(
         path: '/create-profile',
         builder: (context, state) => CreateProfileScreen(),

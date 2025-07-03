@@ -81,6 +81,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<void> signInWithEmail(String email, String password) async {
+    state = state.copyWith(status: AuthStatus.verifyingCode);
+    final authService = _ref.read(authServiceProvider);
+    final result = await authService.signInWithEmail(
+      email: email,
+      password: password,
+    );
+    if (!result.isSuccess) {
+      state = state.copyWith(status: AuthStatus.error, message: result.message);
+    }
+  }
+
+  Future<void> signUpWithEmail(String email, String password) async {
+    state = state.copyWith(status: AuthStatus.sendingCode);
+    final authService = _ref.read(authServiceProvider);
+    final result = await authService.signUpWithEmail(
+      email: email,
+      password: password,
+    );
+    if (!result.isSuccess) {
+      state = state.copyWith(status: AuthStatus.error, message: result.message);
+    }
+  }
+
   Future<void> createProfile(String name) async {
     state = state.copyWith(status: AuthStatus.creatingProfile);
 

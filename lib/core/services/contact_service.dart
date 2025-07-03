@@ -21,16 +21,16 @@ class ContactService {
     // Obtener contactos del teléfono con fast_contacts
     final contacts = await FastContacts.getAllContacts();
 
-    // Extraer números de teléfono
-    final phoneNumbers = <String>[];
+    // Extraer correos electrónicos
+    final emails = <String>[];
     final contactMap = <String, Contact>{};
 
     for (final contact in contacts) {
-      if (contact.phones.isNotEmpty) {
-        for (final phone in contact.phones) {
-          final normalizedPhone = _normalizePhoneNumber(phone.number);
-          phoneNumbers.add(normalizedPhone);
-          contactMap[normalizedPhone] = contact;
+      if (contact.emails.isNotEmpty) {
+        for (final email in contact.emails) {
+          final normalized = email.address.toLowerCase();
+          emails.add(normalized);
+          contactMap[normalized] = contact;
         }
       }
     }
@@ -39,14 +39,14 @@ class ContactService {
     final registeredUsers = <AppUser>[];
 
     // Hacer consultas en lotes de 10 (límite de Firestore para 'in')
-    for (int i = 0; i < phoneNumbers.length; i += 10) {
-      final batch = phoneNumbers.skip(i).take(10).toList();
+    for (int i = 0; i < emails.length; i += 10) {
+      final batch = emails.skip(i).take(10).toList();
 
       if (batch.isEmpty) continue;
 
       final querySnapshot = await _firestore
           .collection('users')
-          .where('phone', whereIn: batch)
+          .where('email', whereIn: batch)
           .get();
 
       for (final doc in querySnapshot.docs) {
@@ -54,7 +54,7 @@ class ContactService {
         final user = AppUser.fromMap({...userData, 'id': doc.id});
 
         // Agregar nombre del contacto si está disponible
-        final contact = contactMap[user.phone];
+        final contact = contactMap[user.email.toLowerCase()];
         if (contact != null && contact.displayName.isNotEmpty) {
           // Opcional: usar nombre del contacto local si está disponible
           registeredUsers.add(user.copyWith(contactName: contact.displayName));
@@ -78,28 +78,12 @@ class ContactService {
     if (query.isEmpty) return contacts;
 
     return contacts.where((contact) {
-      return contact.displayName.toLowerCase().contains(query.toLowerCase()) ||
-          contact.phones.any(
-            (phone) =>
-                phone.number.contains(query.replaceAll(RegExp(r'[^\d]'), '')),
+      final lower = query.toLowerCase();
+      return contact.displayName.toLowerCase().contains(lower) ||
+          contact.emails.any(
+            (email) => email.address.toLowerCase().contains(lower),
           );
     }).toList();
-  }
-
-  String _normalizePhoneNumber(String phone) {
-    // Remover espacios, guiones, paréntesis, mantener solo dígitos y +
-    String cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
-
-    // Si no empieza con +, agregar código de país (ejemplo para Perú)
-    if (!cleaned.startsWith('+')) {
-      // Detectar si es número local peruano (9 dígitos)
-      if (cleaned.length == 9 && cleaned.startsWith('9')) {
-        cleaned = '+51$cleaned';
-      }
-      // Agregar más lógica para otros países según necesites
-    }
-
-    return cleaned;
   }
 
   // Método helper para invitar contactos que no tienen la app

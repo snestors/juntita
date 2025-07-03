@@ -94,6 +94,38 @@ class AuthService {
     return await _auth.signInWithCredential(credential);
   }
 
+  // INICIAR SESIÓN CON EMAIL Y CONTRASEÑA
+  Future<AuthResult> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return AuthResult.success('Sesión iniciada');
+    } catch (e) {
+      return AuthResult.error(_getErrorMessage(e));
+    }
+  }
+
+  // REGISTRAR USUARIO CON EMAIL Y CONTRASEÑA
+  Future<AuthResult> signUpWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return AuthResult.success('Cuenta creada');
+    } catch (e) {
+      return AuthResult.error(_getErrorMessage(e));
+    }
+  }
+
   // 4. CREAR/ACTUALIZAR PERFIL DE USUARIO
   Future<AuthResult> createUserProfile({
     required String name,
@@ -111,7 +143,8 @@ class AuthService {
       final appUser = AppUser(
         id: user.uid,
         name: name,
-        phone: user.phoneNumber ?? '',
+        email: user.email ?? '',
+        phone: user.phoneNumber,
         photoUrl: photoUrl,
         createdAt: userDoc.exists
             ? DateTime.fromMillisecondsSinceEpoch(userDoc.data()!['createdAt'])
@@ -199,6 +232,14 @@ class AuthService {
       switch (error.code) {
         case 'invalid-phone-number':
           return 'Número de teléfono inválido';
+        case 'invalid-email':
+          return 'Email inválido';
+        case 'user-not-found':
+          return 'Usuario no encontrado';
+        case 'wrong-password':
+          return 'Contraseña incorrecta';
+        case 'email-already-in-use':
+          return 'El email ya está en uso';
         case 'too-many-requests':
           return 'Demasiados intentos. Intenta más tarde';
         case 'invalid-verification-code':
