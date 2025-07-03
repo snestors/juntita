@@ -60,7 +60,7 @@ class _ContactSelectionScreenOptimizedState
                         icon: Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
-                          groupController.updateSearch('');
+                          ref.read(contactSearchProvider.notifier).state = '';
                         },
                       )
                     : null,
@@ -69,7 +69,7 @@ class _ContactSelectionScreenOptimizedState
                 ),
               ),
               onChanged: (value) {
-                groupController.updateSearch(value);
+                ref.read(contactSearchProvider.notifier).state = value;
               },
             ),
           ),

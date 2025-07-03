@@ -287,6 +287,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       return;
     }
 
+    final isCreatingNotifier = ref.read(isCreatingGroupProvider.notifier);
+    isCreatingNotifier.state = true;
     try {
       final groupController = ref.read(groupCreationControllerProvider);
 
@@ -310,6 +312,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
+    } finally {
+      isCreatingNotifier.state = false;
     }
   }
 
