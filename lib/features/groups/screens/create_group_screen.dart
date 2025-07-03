@@ -247,7 +247,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             : null,
       ),
       title: Text(user.displayName),
-      subtitle: Text(user.phone),
+      subtitle: Text(user.email),
       trailing: IconButton(
         icon: Icon(Icons.remove_circle_outline, color: Colors.red),
         onPressed: () => controller.removeContact(user),

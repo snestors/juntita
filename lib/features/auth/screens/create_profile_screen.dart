@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:junta/shared/models/auth_state.dart';
+import 'package:junta/features/auth/providers/auth_provider.dart';
 
 class CreateProfileScreen extends ConsumerStatefulWidget {
   const CreateProfileScreen({super.key});
@@ -20,10 +21,10 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
+    final authState = ref.watch(authStateProvider);
 
     // Escuchar cambios de estado
-    ref.listen<AuthState>(authControllerProvider, (previous, next) {
+    ref.listen<AuthState>(authStateProvider, (previous, next) {
       if (next.status == AuthStatus.authenticated) {
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else if (next.status == AuthStatus.error) {
@@ -180,7 +181,7 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     ref
-        .read(authControllerProvider.notifier)
+        .read(authStateProvider.notifier)
         .createUserProfile(_nameController.text);
   }
 

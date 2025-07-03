@@ -212,7 +212,7 @@ class _ContactSelectionScreenOptimizedState
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        subtitle: Text(contact.phone),
+        subtitle: Text(contact.email),
         trailing: isSelected
             ? Icon(Icons.check_circle, color: Theme.of(context).primaryColor)
             : Icon(Icons.add_circle_outline),
