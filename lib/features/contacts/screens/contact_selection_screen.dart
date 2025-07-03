@@ -1,80 +1,47 @@
-// 2. PANTALLA DE SELECCIÓN DE CONTACTOS - lib/features/contacts/screens/contact_selection_screen.dart
+// lib/features/contacts/screens/contact_selection_screen_optimized.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:junta/shared/models/user_model.dart';
-import '../../../core/providers/service_providers.dart';
+import 'package:junta/core/providers/app_provider.dart';
 
-class ContactSelectionScreen extends ConsumerStatefulWidget {
-  final List<AppUser> excludeUsers;
+import '../../../shared/models/user_model.dart';
 
-  const ContactSelectionScreen({Key? key, this.excludeUsers = const []})
-    : super(key: key);
+class ContactSelectionScreenOptimized extends ConsumerStatefulWidget {
+  const ContactSelectionScreenOptimized({super.key});
 
   @override
-  ConsumerState<ContactSelectionScreen> createState() =>
-      _ContactSelectionScreenState();
+  ConsumerState<ContactSelectionScreenOptimized> createState() =>
+      _ContactSelectionScreenOptimizedState();
 }
 
-class _ContactSelectionScreenState
-    extends ConsumerState<ContactSelectionScreen> {
-  List<AppUser> _availableContacts = [];
-  List<AppUser> _selectedContacts = [];
-  bool _isLoading = true;
-  String _searchQuery = '';
+class _ContactSelectionScreenOptimizedState
+    extends ConsumerState<ContactSelectionScreenOptimized> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadContacts();
-  }
 
-  Future<void> _loadContacts() async {
-    try {
-      final contactService = ref.read(contactServiceProvider);
-      final contacts = await contactService.getRegisteredContacts();
-
-      // Filtrar usuarios excluidos
-      final excludeIds = widget.excludeUsers.map((u) => u.id).toSet();
-      final availableContacts = contacts
-          .where((contact) => !excludeIds.contains(contact.id))
-          .toList();
-
-      setState(() {
-        _availableContacts = availableContacts;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error cargando contactos: $e')));
-      }
-    }
-  }
-
-  List<AppUser> get _filteredContacts {
-    if (_searchQuery.isEmpty) return _availableContacts;
-
-    return _availableContacts.where((contact) {
-      return contact.displayName.toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          contact.phone.contains(_searchQuery);
-    }).toList();
+    // Limpiar búsqueda al entrar
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(contactSearchProvider.notifier).state = '';
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredContacts = ref.watch(filteredContactsProvider);
+    final selectedContacts = ref.watch(selectedContactsProvider);
+    final contactsAsync = ref.watch(registeredContactsProvider);
+    final groupController = ref.read(groupCreationControllerProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Seleccionar Contactos'),
         actions: [
-          if (_selectedContacts.isNotEmpty)
+          if (selectedContacts.isNotEmpty)
             TextButton(
-              onPressed: () => Navigator.pop(context, _selectedContacts),
-              child: Text('LISTO (${_selectedContacts.length})'),
+              onPressed: () => Navigator.pop(context),
+              child: Text('LISTO (${selectedContacts.length})'),
             ),
         ],
       ),
@@ -88,79 +55,237 @@ class _ContactSelectionScreenState
               decoration: InputDecoration(
                 hintText: 'Buscar contactos...',
                 prefixIcon: Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          groupController.updateSearch('');
+                        },
+                      )
+                    : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
               onChanged: (value) {
-                setState(() => _searchQuery = value);
+                groupController.updateSearch(value);
               },
             ),
           ),
 
+          // Contactos seleccionados (chips)
+          if (selectedContacts.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Wrap(
+                spacing: 8,
+                children: selectedContacts.map((contact) {
+                  return Chip(
+                    avatar: CircleAvatar(
+                      backgroundImage: contact.photoUrl != null
+                          ? NetworkImage(contact.photoUrl!)
+                          : null,
+                      child: contact.photoUrl == null
+                          ? Text(contact.displayName[0].toUpperCase())
+                          : null,
+                    ),
+                    label: Text(contact.displayName),
+                    onDeleted: () => groupController.removeContact(contact),
+                    deleteIcon: Icon(Icons.close, size: 18),
+                  );
+                }).toList(),
+              ),
+            ),
+
+          if (selectedContacts.isNotEmpty) Divider(),
+
           // Lista de contactos
           Expanded(
-            child: _isLoading
-                ? Center(child: CircularProgressIndicator())
-                : _filteredContacts.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.contacts, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          _searchQuery.isEmpty
-                              ? 'No hay contactos disponibles'
-                              : 'No se encontraron contactos',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _filteredContacts.length,
-                    itemBuilder: (context, index) {
-                      final contact = _filteredContacts[index];
-                      final isSelected = _selectedContacts.contains(contact);
+            child: contactsAsync.when(
+              data: (allContacts) {
+                if (allContacts.isEmpty) {
+                  return _buildEmptyState(
+                    icon: Icons.contacts,
+                    title: 'Sin contactos registrados',
+                    subtitle: 'Invita a tus amigos a usar Juntas App',
+                  );
+                }
 
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: contact.photoUrl != null
-                              ? NetworkImage(contact.photoUrl!)
-                              : null,
-                          child: contact.photoUrl == null
-                              ? Text(contact.displayName[0].toUpperCase())
-                              : null,
-                        ),
-                        title: Text(contact.displayName),
-                        subtitle: Text(contact.phone),
-                        trailing: Checkbox(
-                          value: isSelected,
-                          onChanged: (bool? value) {
-                            setState(() {
-                              if (value == true) {
-                                _selectedContacts.add(contact);
-                              } else {
-                                _selectedContacts.remove(contact);
-                              }
-                            });
-                          },
-                        ),
-                        onTap: () {
-                          setState(() {
-                            if (isSelected) {
-                              _selectedContacts.remove(contact);
-                            } else {
-                              _selectedContacts.add(contact);
-                            }
-                          });
-                        },
-                      );
-                    },
-                  ),
+                if (filteredContacts.isEmpty) {
+                  return _buildEmptyState(
+                    icon: Icons.search_off,
+                    title: 'No se encontraron contactos',
+                    subtitle: 'Intenta con otros términos de búsqueda',
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: filteredContacts.length,
+                  itemBuilder: (context, index) {
+                    final contact = filteredContacts[index];
+                    final isSelected = selectedContacts.any(
+                      (selected) => selected.id == contact.id,
+                    );
+
+                    return _buildContactTile(
+                      contact: contact,
+                      isSelected: isSelected,
+                      onTap: () {
+                        if (isSelected) {
+                          groupController.removeContact(contact);
+                        } else {
+                          groupController.addContact(contact);
+                        }
+                      },
+                    );
+                  },
+                );
+              },
+              loading: () => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Cargando contactos...'),
+                  ],
+                ),
+              ),
+              error: (error, stack) => _buildErrorState(error),
+            ),
           ),
         ],
+      ),
+      floatingActionButton: selectedContacts.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: () => Navigator.pop(context),
+              icon: Icon(Icons.check),
+              label: Text('Continuar (${selectedContacts.length})'),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildContactTile({
+    required AppUser contact,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      elevation: isSelected ? 4 : 1,
+      color: isSelected
+          ? Theme.of(context).primaryColor.withOpacity(0.1)
+          : null,
+      child: ListTile(
+        leading: Stack(
+          children: [
+            CircleAvatar(
+              backgroundImage: contact.photoUrl != null
+                  ? NetworkImage(contact.photoUrl!)
+                  : null,
+              child: contact.photoUrl == null
+                  ? Text(contact.displayName[0].toUpperCase())
+                  : null,
+            ),
+            if (contact.isOnline)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        title: Text(
+          contact.displayName,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        subtitle: Text(contact.phone),
+        trailing: isSelected
+            ? Icon(Icons.check_circle, color: Theme.of(context).primaryColor)
+            : Icon(Icons.add_circle_outline),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 64, color: Colors.grey[400]),
+            SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(dynamic error) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red),
+            SizedBox(height: 16),
+            Text(
+              'Error cargando contactos',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                ref.invalidate(registeredContactsProvider);
+              },
+              child: Text('Reintentar'),
+            ),
+          ],
+        ),
       ),
     );
   }

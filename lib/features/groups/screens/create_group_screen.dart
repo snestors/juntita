@@ -1,12 +1,12 @@
 // lib/features/groups/screens/create_group_screen.dart
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:junta/core/providers/service_providers.dart';
+import 'package:go_router/go_router.dart';
+import 'package:junta/core/providers/app_provider.dart';
 import 'package:junta/features/contacts/screens/contact_selection_screen.dart';
-import 'package:junta/shared/models/junta_group_model.dart';
-import 'package:junta/shared/models/user_model.dart';
+
+import '../../../shared/models/user_model.dart';
 
 class CreateGroupScreen extends ConsumerStatefulWidget {
   const CreateGroupScreen({super.key});
@@ -23,14 +23,28 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   int _daysInterval = 15;
   String _currency = 'PEN';
   DateTime _startDate = DateTime.now().add(Duration(days: 7));
-  final List<AppUser> _selectedParticipants = [];
 
   @override
   Widget build(BuildContext context) {
+    final selectedParticipants = ref.watch(selectedContactsProvider);
+    final isCreating = ref.watch(isCreatingGroupProvider);
+    final groupController = ref.read(groupCreationControllerProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Nueva Junta'),
-        actions: [TextButton(onPressed: _createGroup, child: Text('CREAR'))],
+        actions: [
+          TextButton(
+            onPressed: isCreating ? null : _createGroup,
+            child: isCreating
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text('CREAR'),
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -53,7 +67,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             ),
             SizedBox(height: 16),
 
-            // Monto
+            // Monto y moneda
             Row(
               children: [
                 Expanded(
@@ -90,41 +104,61 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             SizedBox(height: 16),
 
             // Intervalo de días
-            Row(
-              children: [
-                Text('Cada '),
-                Expanded(
-                  child: Slider(
-                    value: _daysInterval.toDouble(),
-                    min: 7,
-                    max: 60,
-                    divisions: 17,
-                    label: '$_daysInterval días',
-                    onChanged: (value) {
-                      setState(() => _daysInterval = value.round());
-                    },
-                  ),
+            Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Intervalo de pagos',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text('Cada '),
+                        Expanded(
+                          child: Slider(
+                            value: _daysInterval.toDouble(),
+                            min: 7,
+                            max: 60,
+                            divisions: 17,
+                            label: '$_daysInterval días',
+                            onChanged: (value) {
+                              setState(() => _daysInterval = value.round());
+                            },
+                          ),
+                        ),
+                        Text(' días'),
+                      ],
+                    ),
+                  ],
                 ),
-                Text(' días'),
-              ],
+              ),
             ),
 
+            SizedBox(height: 16),
+
             // Fecha de inicio
-            ListTile(
-              title: Text('Fecha de inicio'),
-              subtitle: Text(DateFormat('dd/MM/yyyy').format(_startDate)),
-              trailing: Icon(Icons.calendar_today),
-              onTap: _selectStartDate,
+            Card(
+              child: ListTile(
+                leading: Icon(Icons.calendar_today),
+                title: Text('Fecha de inicio'),
+                subtitle: Text(DateFormat('dd/MM/yyyy').format(_startDate)),
+                trailing: Icon(Icons.chevron_right),
+                onTap: _selectStartDate,
+              ),
             ),
 
             SizedBox(height: 24),
 
-            // Participantes
+            // Sección de participantes
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Participantes (${_selectedParticipants.length})',
+                  'Participantes (${selectedParticipants.length})',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 TextButton.icon(
@@ -136,30 +170,87 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             ),
 
             // Lista de participantes seleccionados
-            ..._selectedParticipants.map(
-              (user) => ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: user.photoUrl != null
-                      ? NetworkImage(user.photoUrl!)
-                      : null,
-                  child: user.photoUrl == null
-                      ? Text(user.name[0].toUpperCase())
-                      : null,
+            if (selectedParticipants.isEmpty)
+              Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Icon(Icons.group_add, size: 48, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text(
+                        'Agrega participantes a tu junta',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
                 ),
-                title: Text(user.name),
-                subtitle: Text(user.phone),
-                trailing: IconButton(
-                  icon: Icon(Icons.remove_circle),
-                  onPressed: () {
-                    setState(() {
-                      _selectedParticipants.remove(user);
-                    });
-                  },
+              )
+            else
+              Card(
+                child: Column(
+                  children: selectedParticipants
+                      .map(
+                        (user) => _buildParticipantTile(user, groupController),
+                      )
+                      .toList(),
                 ),
               ),
-            ),
+
+            SizedBox(height: 16),
+
+            // Información adicional
+            if (selectedParticipants.isNotEmpty)
+              Card(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Resumen de la junta',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '• ${selectedParticipants.length + 1} participantes total',
+                      ),
+                      Text('• Cada $_daysInterval días'),
+                      Text(
+                        '• Total de rondas: ${selectedParticipants.length + 1}',
+                      ),
+                      Text(
+                        '• Duración: ${(selectedParticipants.length + 1) * _daysInterval} días',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildParticipantTile(
+    AppUser user,
+    GroupCreationController controller,
+  ) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundImage: user.photoUrl != null
+            ? NetworkImage(user.photoUrl!)
+            : null,
+        child: user.photoUrl == null
+            ? Text(user.displayName[0].toUpperCase())
+            : null,
+      ),
+      title: Text(user.displayName),
+      subtitle: Text(user.phone),
+      trailing: IconButton(
+        icon: Icon(Icons.remove_circle_outline, color: Colors.red),
+        onPressed: () => controller.removeContact(user),
       ),
     );
   }
@@ -177,70 +268,55 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   Future<void> _selectParticipants() async {
-    // Navegar a pantalla de selección de contactos
-    final result = await Navigator.push<List<AppUser>>(
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            ContactSelectionScreen(excludeUsers: _selectedParticipants),
+        builder: (context) => ContactSelectionScreenOptimized(),
       ),
     );
-
-    if (result != null) {
-      setState(() {
-        _selectedParticipants.addAll(result);
-      });
-    }
   }
 
   Future<void> _createGroup() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedParticipants.length < 2) {
+    final selectedParticipants = ref.read(selectedContactsProvider);
+    if (selectedParticipants.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Necesitas al menos 2 participantes')),
       );
       return;
     }
 
-    // Incluir al usuario actual como participante
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: Usuario no autenticado')));
-      return;
-    }
-    final currentUserId = currentUser.uid;
-    final participantIds = [
-      currentUserId,
-      ..._selectedParticipants.map((u) => u.id),
-    ];
-
-    final group = JuntaGroup(
-      id: '',
-      name: _nameController.text,
-      adminId: currentUserId,
-      amount: double.parse(_amountController.text),
-      currency: _currency,
-      daysInterval: _daysInterval,
-      participantIds: participantIds,
-      createdAt: DateTime.now(),
-      startDate: _startDate,
-    );
-
     try {
-      final groupService = ref.read(groupServiceProvider);
-      await groupService.createGroup(group);
-      if (!context.mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Junta creada exitosamente')));
+      final groupController = ref.read(groupCreationControllerProvider);
+
+      final success = await groupController.createGroup(
+        name: _nameController.text,
+        amount: double.parse(_amountController.text),
+        currency: _currency,
+        daysInterval: _daysInterval,
+        startDate: _startDate,
+      );
+
+      if (success && mounted) {
+        context.pop(); // Usar go_router
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Junta creada exitosamente')));
+      }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _amountController.dispose();
+    super.dispose();
   }
 }

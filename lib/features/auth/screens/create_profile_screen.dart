@@ -5,9 +5,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:junta/shared/models/auth_state.dart';
-import '../controllers/auth_controller.dart';
 
 class CreateProfileScreen extends ConsumerStatefulWidget {
+  const CreateProfileScreen({super.key});
+
   @override
   ConsumerState<CreateProfileScreen> createState() =>
       _CreateProfileScreenState();

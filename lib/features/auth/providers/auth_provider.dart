@@ -1,152 +1,105 @@
 // ============================================================================
-// 1. AUTH PROVIDER REACTIVO - lib/features/auth/providers/auth_provider.dart
+// 2. AUTH PROVIDERS - lib/features/auth/providers/auth_providers.dart
 // ============================================================================
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:junta/features/auth/controllers/auth_controller.dart';
-import 'package:junta/shared/models/auth_state.dart';
-import '../services/auth_service.dart';
+import '../../../shared/models/auth_state.dart';
+import '../../../core/providers/service_providers.dart';
 
-// Stream provider reactivo para el estado de auth
-final authProvider = StreamProvider<AuthState?>((ref) async* {
-  final authService = ref.read(authServiceProvider);
-
-  // Escuchar cambios de Firebase Auth
-  await for (final firebaseUser in FirebaseAuth.instance.authStateChanges()) {
-    if (firebaseUser == null) {
-      // Usuario no autenticado
-      yield AuthState(status: AuthStatus.unauthenticated);
-    } else {
-      // Usuario autenticado, verificar perfil
-      try {
-        final userData = await authService.getCurrentUserData();
-        if (userData != null) {
-          // Perfil completo
-          yield AuthState(status: AuthStatus.authenticated, user: userData);
-        } else {
-          // Usuario sin perfil completo
-          yield AuthState(status: AuthStatus.creatingProfile);
-        }
-      } catch (e) {
-        print('Error obteniendo datos del usuario: $e');
-        yield AuthState(
-          status: AuthStatus.error,
-          message: 'Error verificando perfil',
-        );
-      }
-    }
-  }
+// Stream del usuario de Firebase
+final firebaseUserProvider = StreamProvider<User?>((ref) {
+  return FirebaseAuth.instance.authStateChanges();
 });
 
-// Notifier para acciones de auth
-final authNotifierProvider =
-    StateNotifierProvider<AuthNotifier, AsyncValue<AuthState?>>((ref) {
-      return AuthNotifier(ref.read(authServiceProvider));
-    });
+// Estado de autenticación
+final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+  return AuthNotifier(ref);
+});
 
-class AuthNotifier extends StateNotifier<AsyncValue<AuthState?>> {
-  final AuthService _authService;
+class AuthNotifier extends StateNotifier<AuthState> {
+  final Ref _ref;
   String? _verificationId;
 
-  AuthNotifier(this._authService) : super(const AsyncValue.loading());
+  AuthNotifier(this._ref) : super(AuthState()) {
+    _initAuth();
+  }
 
-  // Enviar código de verificación
+  void _initAuth() {
+    // Escuchar cambios del usuario de Firebase
+    _ref.listen(firebaseUserProvider, (previous, next) {
+      next.whenData((user) => _handleUserChange(user));
+    });
+  }
+
+  Future<void> _handleUserChange(User? user) async {
+    if (user == null) {
+      state = state.copyWith(status: AuthStatus.unauthenticated, user: null);
+      return;
+    }
+
+    // Usuario existe, verificar perfil
+    final authService = _ref.read(authServiceProvider);
+    final userData = await authService.getCurrentUserData();
+
+    if (userData != null) {
+      state = state.copyWith(status: AuthStatus.authenticated, user: userData);
+    } else {
+      state = state.copyWith(status: AuthStatus.creatingProfile);
+    }
+  }
+
   Future<void> sendVerificationCode(String phoneNumber) async {
-    state = const AsyncValue.loading();
+    state = state.copyWith(status: AuthStatus.sendingCode);
 
-    try {
-      await _authService.sendVerificationCode(
-        phoneNumber: phoneNumber,
-        onCodeSent: (verificationId) {
-          _verificationId = verificationId;
-          state = AsyncValue.data(
-            AuthState(
-              status: AuthStatus.codeSent,
-              verificationId: verificationId,
-              message: 'Código enviado a $phoneNumber',
-            ),
-          );
-        },
-        onError: (error) {
-          state = AsyncValue.data(
-            AuthState(status: AuthStatus.error, message: error),
-          );
-        },
-      );
-    } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+    final authService = _ref.read(authServiceProvider);
+    await authService.sendVerificationCode(
+      phoneNumber: phoneNumber,
+      onCodeSent: (verificationId) {
+        _verificationId = verificationId;
+        state = state.copyWith(
+          status: AuthStatus.codeSent,
+          verificationId: verificationId,
+        );
+      },
+      onError: (error) {
+        state = state.copyWith(status: AuthStatus.error, message: error);
+      },
+    );
+  }
+
+  Future<void> verifyCode(String code) async {
+    state = state.copyWith(status: AuthStatus.verifyingCode);
+
+    final authService = _ref.read(authServiceProvider);
+    final result = await authService.verifyCode(
+      smsCode: code,
+      verificationId: _verificationId,
+    );
+
+    if (!result.isSuccess) {
+      state = state.copyWith(status: AuthStatus.error, message: result.message);
     }
   }
 
-  // Verificar código SMS
-  Future<void> verifyCode(String smsCode) async {
-    state = const AsyncValue.loading();
+  Future<void> createProfile(String name) async {
+    state = state.copyWith(status: AuthStatus.creatingProfile);
 
-    try {
-      final result = await _authService.verifyCode(
-        smsCode: smsCode,
-        verificationId: _verificationId,
-      );
+    final authService = _ref.read(authServiceProvider);
+    final result = await authService.createUserProfile(name: name);
 
-      if (result.isSuccess) {
-        // Firebase Auth se encargará de actualizar el stream
-        state = AsyncValue.data(
-          AuthState(
-            status: AuthStatus.verifyingCode,
-            message: 'Verificación exitosa',
-          ),
-        );
-      } else {
-        state = AsyncValue.data(
-          AuthState(status: AuthStatus.error, message: result.message),
-        );
-      }
-    } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+    if (!result.isSuccess) {
+      state = state.copyWith(status: AuthStatus.error, message: result.message);
     }
   }
 
-  // Crear perfil de usuario
-  Future<void> createUserProfile(String name, [String? photoUrl]) async {
-    state = const AsyncValue.loading();
-
-    try {
-      final result = await _authService.createUserProfile(
-        name: name,
-        photoUrl: photoUrl,
-      );
-
-      if (result.isSuccess) {
-        // El stream provider se actualizará automáticamente
-        state = AsyncValue.data(
-          AuthState(
-            status: AuthStatus.creatingProfile,
-            message: 'Perfil creado exitosamente',
-          ),
-        );
-      } else {
-        state = AsyncValue.data(
-          AuthState(status: AuthStatus.error, message: result.message),
-        );
-      }
-    } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
-    }
-  }
-
-  // Cerrar sesión
   Future<void> signOut() async {
-    try {
-      await _authService.signOut();
-      state = AsyncValue.data(AuthState(status: AuthStatus.unauthenticated));
-    } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
-    }
+    final authService = _ref.read(authServiceProvider);
+    await authService.signOut();
   }
 
-  // Limpiar estado
-  void clearState() {
-    state = AsyncValue.data(AuthState(status: AuthStatus.initial));
+  void clearError() {
+    if (state.status == AuthStatus.error) {
+      state = state.copyWith(status: AuthStatus.initial, message: null);
+    }
   }
 }
