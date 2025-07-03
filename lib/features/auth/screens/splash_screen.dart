@@ -1,11 +1,7 @@
-// ============================================================================
-// 3. SPLASH SCREEN - lib/features/auth/screens/splash_screen.dart
-// ============================================================================
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../controllers/auth_controller.dart';
-
 import 'package:junta/shared/models/auth_state.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -18,6 +14,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -44,47 +41,50 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _animationController.forward();
 
-    // Esperar 3 segundos antes de verificar el estado de auth
-    Future.delayed(Duration(seconds: 3), () {
-      _checkAuthAndNavigate();
+    // Dar tiempo mínimo para la animación antes de verificar auth
+    Future.delayed(Duration(milliseconds: 2500), () {
+      _checkAuthState();
     });
   }
 
-  void _checkAuthAndNavigate() {
+  void _checkAuthState() {
+    if (!mounted || _hasNavigated) return;
+
     final authState = ref.read(authControllerProvider);
+    _navigateBasedOnAuthState(authState);
+  }
+
+  void _navigateBasedOnAuthState(AuthState authState) {
+    if (!mounted || _hasNavigated) return;
+
+    _hasNavigated = true;
 
     switch (authState.status) {
       case AuthStatus.authenticated:
-        Navigator.pushReplacementNamed(context, '/dashboard');
+        context.go('/dashboard');
         break;
       case AuthStatus.creatingProfile:
-        Navigator.pushReplacementNamed(context, '/create-profile');
+        context.go('/create-profile');
         break;
+      case AuthStatus.unauthenticated:
+      case AuthStatus.error:
+      case AuthStatus.initial:
       default:
-        Navigator.pushReplacementNamed(context, '/phone-auth');
+        context.go('/phone-auth');
         break;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Escuchar cambios de estado durante el splash
+    // Escuchar cambios de estado de autenticación
     ref.listen<AuthState>(authControllerProvider, (previous, next) {
-      // Solo navegar si el splash ya terminó
-      if (_animationController.isCompleted) {
-        switch (next.status) {
-          case AuthStatus.authenticated:
-            Navigator.pushReplacementNamed(context, '/dashboard');
-            break;
-          case AuthStatus.creatingProfile:
-            Navigator.pushReplacementNamed(context, '/create-profile');
-            break;
-          case AuthStatus.unauthenticated:
-            Navigator.pushReplacementNamed(context, '/phone-auth');
-            break;
-          default:
-            break;
-        }
+      // Solo navegar si la animación terminó y no hemos navegado aún
+      if (_animationController.isCompleted && !_hasNavigated) {
+        // Dar un pequeño delay para que la UI se estabilice
+        Future.delayed(Duration(milliseconds: 500), () {
+          _navigateBasedOnAuthState(next);
+        });
       }
     });
 
@@ -156,6 +156,41 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         strokeWidth: 3,
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
+                    ),
+
+                    SizedBox(height: 16),
+
+                    // Estado de carga
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final authState = ref.watch(authControllerProvider);
+                        String loadingText = 'Inicializando...';
+
+                        switch (authState.status) {
+                          case AuthStatus.initial:
+                            loadingText = 'Verificando autenticación...';
+                            break;
+                          case AuthStatus.authenticated:
+                            loadingText = 'Bienvenido de vuelta!';
+                            break;
+                          case AuthStatus.unauthenticated:
+                            loadingText = 'Preparando login...';
+                            break;
+                          case AuthStatus.creatingProfile:
+                            loadingText = 'Configurando perfil...';
+                            break;
+                          default:
+                            loadingText = 'Cargando...';
+                        }
+
+                        return Text(
+                          loadingText,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 14,
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),

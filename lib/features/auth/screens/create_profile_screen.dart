@@ -142,7 +142,7 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
                 // Botón crear perfil
                 ElevatedButton(
                   onPressed: authState.status == AuthStatus.creatingProfile
-                      ? null
+                      ? _createProfile
                       : _createProfile,
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 16),
